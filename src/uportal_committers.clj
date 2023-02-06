@@ -5,7 +5,7 @@
             [clojure.pprint :refer :all]))
 
 (def orgs ["uPortal-project" "uPortal-contrib" "uPortal-attic"])
-(def team-slug "/uportal-committers")
+(def team-slug "uportal-committers")
 (def api-uri  "https://api.github.com")
 (def api-token (System/getProperty "github-api-token"))
 (def auth-str (str "token " api-token))
@@ -24,16 +24,16 @@
     (if-not url
       collection
       (let [response (client/get url url-params)
-            json (:body response)
+            json (cheshire/parse-string (:body response) true)
             resp-collection (collect-fn json)]
         (recur (get-in response [:links :next :href])
                (concat collection resp-collection))))))
 
 (defn get-name [json]
-  (map #(get % :name) (cheshire/parse-string json true)))
+  (map #(get % :name) json))
 
 (defn get-login [json]
-  (map #(get % :login) (cheshire/parse-string json true)))
+  (map #(get % :login) json))
 
 (defn get-repos [org]
   (let [url (str api-uri "/orgs/" org "/repos")]
