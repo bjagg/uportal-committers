@@ -29,27 +29,22 @@
         (recur (get-in response [:links :next :href])
                (concat collection resp-collection))))))
 
-(defn get-name [json]
-  (map #(get % :name) json))
+(defn get-name [json] (map :name json))
 
-(defn get-login [json]
-  (map #(get % :login) json))
+(defn get-login [json] (map :login json))
 
 (defn get-repos [org]
-  (let [url (str api-uri "/orgs/" org "/repos")]
-    (process-paged-responses url common-headers get-name)))
+  (let [url (str api-uri "/orgs/" org "/repos")
+        repos (process-paged-responses url common-headers get-name)]
+    (map (juxt (constantly org) identity) repos)))
 
 (defn get-committers []
   (let [url (str api-uri "/orgs/" "uPortal-project" "/teams/" team-slug "/members")]
     (process-paged-responses url common-headers get-login)))
 
-#_(defn get-contributors [org repo]
-  (let [url (str api-uri "/repos/" org "/" repo "/contributors")]
-    (process-paged-responses url common-headers get-login)))
-
-(defn no-recent-commits? [org repo login]
+(defn no-recent-commits? [[org repo] login]
   (let [url (str api-uri "/repos/" org "/" repo "/commits")
-        since "2022-01-01T00:00:00Z"
+        since "2022-02-01T00:00:00Z"
         q {:query-params {:author login :since since}}
         url-params (merge common-headers q)
         response (client/get url url-params)
@@ -59,21 +54,16 @@
 
 (defn inactive-repo-committers
   "Given a list of members, remove any that are active in this repo"
-  [org repo members]
-  (let [no-commits? (partial no-recent-commits? org repo)]
+  [members org-repo]
+  (let [no-commits? (partial no-recent-commits? org-repo)]
     (filter no-commits? members)))
 
-(defn inactive-org-committers [org]
-  (let [members (get-committers)
-        repos (get-repos org)
-        remove-actives (fn [maybe-inactive repo]
-                         (inactive-repo-committers org repo maybe-inactive))]
-    (set (reduce remove-actives members repos))))
-
 (defn inactive-committers [orgs]
-  (let [inactives-by-org (map inactive-org-committers orgs)]
-    #_(pprint inactives-by-org)
-    (apply clojure.set/intersection inactives-by-org)))
+  (let [members (get-committers)
+        org-repos (mapcat get-repos orgs)]
+    (pprint members)
+    #_(pprint org-repos)
+    (reduce inactive-repo-committers members org-repos)))
 
 (defn run [opts]
   (println (do (inactive-committers orgs))))
